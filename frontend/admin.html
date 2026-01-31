@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Admin - PT INPAM TEKNO</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <svg width="50" height="50" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="100" cy="100" r="90" fill="#ffffff"/>
+                <circle cx="100" cy="100" r="70" fill="#3B82F6"/>
+                <path d="M100 50 C100 50, 85 70, 85 85 C85 95, 92 102, 100 102 C108 102, 115 95, 115 85 C115 70, 100 50, 100 50 Z" fill="white"/>
+            </svg>
+            <span>PT INPAM TEKNO</span>
+        </div>
+        <div class="navbar-menu">
+            <span style="color: white; font-weight: 600;">Sistem Pengaduan PDAM</span>
+            <div class="user-info">
+                <span id="adminName">Admin</span>
+                <button class="btn-sm btn-delete" onclick="logout()" style="margin-left: 1rem;">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <!-- Statistics Cards -->
+        <div class="stats-grid">
+            <div class="stat-card info">
+                <h3>Total Pengaduan</h3>
+                <div class="stat-value" id="totalPengaduan">0</div>
+            </div>
+            <div class="stat-card warning">
+                <h3>Status Baru</h3>
+                <div class="stat-value" id="statusBaru">0</div>
+            </div>
+            <div class="stat-card info">
+                <h3>Status Proses</h3>
+                <div class="stat-value" id="statusProses">0</div>
+            </div>
+            <div class="stat-card success">
+                <h3>Selesai</h3>
+                <div class="stat-value" id="statusSelesai">0</div>
+            </div>
+        </div>
+
+        <!-- Filter and Search -->
+        <div class="card" style="margin-bottom: 2rem;">
+            <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 200px;">
+                    <input
+                        type="text"
+                        class="form-control"
+                        id="searchInput"
+                        placeholder="Cari Nama Pengadu..."
+                        style="margin: 0;"
+                    >
+                </div>
+                <select class="form-control" id="filterStatus" style="flex: 1; min-width: 150px; margin: 0;">
+                    <option value="">Semua Status</option>
+                    <option value="Baru">Baru</option>
+                    <option value="Proses">Proses</option>
+                    <option value="Selesai">Selesai</option>
+                </select>
+                <button class="btn btn-primary" onclick="loadComplaints()" style="white-space: nowrap;">
+                    Refresh Data
+                </button>
+            </div>
+        </div>
+
+        <!-- Complaints Table -->
+        <div class="card">
+            <div class="page-header" style="margin-bottom: 1.5rem;">
+                <h2 style="font-size: 1.5rem; margin: 0;">Daftar Pengaduan</h2>
+                <p style="margin: 0;">Total: <span id="tableCount">0</span> pengaduan</p>
+            </div>
+
+            <div class="table-container" id="tableContainer">
+                <div class="spinner"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal" id="detailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Detail Pengaduan</h2>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+        let token = localStorage.getItem('token');
+        let user = JSON.parse(localStorage.getItem('user'));
+        let allComplaints = [];
+
+        // Check authentication and admin role
+        if (!token || !user || user.role !== 'admin') {
+            alert('Akses ditolak. Hanya admin yang dapat mengakses halaman ini.');
+            window.location.href = '/login';
+        }
+
+        // Display admin name
+        document.getElementById('adminName').textContent = user.nama_lengkap || user.username;
+
+        // Load statistics
+        async function loadStatistics() {
+            try {
+                const response = await fetch(`${API_URL}/admin/statistics`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const stats = data.statistics;
+                    document.getElementById('totalPengaduan').textContent = stats.total;
+                    document.getElementById('statusBaru').textContent = stats.baru;
+                    document.getElementById('statusProses').textContent = stats.proses;
+                    document.getElementById('statusSelesai').textContent = stats.selesai;
+                }
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+            }
+        }
+
+        // Load complaints
+        async function loadComplaints() {
+            try {
+                const response = await fetch(`${API_URL}/admin/complaints`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    allComplaints = data.complaints;
+                    filterAndDisplayComplaints();
+                } else {
+                    document.getElementById('tableContainer').innerHTML = `
+                        <div class="alert alert-error">
+                            Gagal memuat data pengaduan
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('tableContainer').innerHTML = `
+                    <div class="alert alert-error">
+                        Terjadi kesalahan saat memuat data
+                    </div>
+                `;
+            }
+        }
+
+        // Filter and display complaints
+        function filterAndDisplayComplaints() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const statusFilter = document.getElementById('filterStatus').value;
+
+            let filtered = allComplaints.filter(complaint => {
+                const matchesSearch = complaint.nama_lengkap.toLowerCase().includes(searchTerm);
+                const matchesStatus = !statusFilter || complaint.status === statusFilter;
+                return matchesSearch && matchesStatus;
+            });
+
+            displayComplaints(filtered);
+        }
+
+        // Display complaints in table
+        function displayComplaints(complaints) {
+            const container = document.getElementById('tableContainer');
+            document.getElementById('tableCount').textContent = complaints.length;
+
+            if (complaints.length === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-info">
+                        Tidak ada pengaduan ditemukan
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Tanggal</th>
+                            <th>Nama Pengadu</th>
+                            <th>ID Pelanggan</th>
+                            <th>Kategori Pengaduan</th>
+                            <th>Status</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${complaints.map((complaint, index) => `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td>${new Date(complaint.tanggal).toLocaleDateString('id-ID')}</td>
+                                <td>${complaint.nama_lengkap}</td>
+                                <td><strong>${complaint.no_pelanggan || '-'}</strong></td>
+                                <td>${complaint.kategori}</td>
+                                <td>
+                                    <span class="status-badge ${complaint.status.toLowerCase()}">${complaint.status}</span>
+                                </td>
+                                <td>
+                                    <div class="action-btns">
+                                        <button class="btn-sm btn-detail" onclick="showDetail(${complaint.id})">
+                                            Detail
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // Show complaint detail
+        function showDetail(complaintId) {
+            const complaint = allComplaints.find(c => c.id === complaintId);
+            if (!complaint) return;
+
+            document.getElementById('modalBody').innerHTML = `
+                <div>
+                    <div class="form-group">
+                        <label><strong>Nama Pengadu:</strong></label>
+                        <p>${complaint.nama_lengkap}</p>
+                    </div>
+                    <div class="form-group">
+                        <label><strong>Username:</strong></label>
+                        <p>${complaint.username}</p>
+                    </div>
+                    <div class="form-group">
+                        <label><strong>No. Pelanggan:</strong></label>
+                        <p style="background: linear-gradient(135deg, #0A2463 0%, #3B82F6 100%); color: white; padding: 0.75rem 1rem; border-radius: 8px; font-size: 1.1rem; font-weight: 600;">
+                            ${complaint.no_pelanggan || 'Tidak ada ID Pelanggan'}
+                        </p>
+                    </div>
+                    <div class="form-group">
+                        <label><strong>Kategori:</strong></label>
+                        <p>${complaint.kategori}</p>
+                    </div>
+                    <div class="form-group">
+                        <label><strong>Tanggal Pengaduan:</strong></label>
+                        <p>${new Date(complaint.tanggal).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric'
+                        })}</p>
+                    </div>
+                    <div class="form-group">
+                        <label><strong>Deskripsi:</strong></label>
+                        <p style="background: #F8FAFC; padding: 1rem; border-radius: 8px; line-height: 1.6;">
+                            ${complaint.deskripsi}
+                        </p>
+                    </div>
+                    ${complaint.lampiran ? `
+                        <div class="form-group">
+                            <label><strong>Lampiran:</strong></label>
+                            <div style="margin-top: 0.5rem;">
+                                <img src="/uploads/${complaint.lampiran}" alt="Lampiran"
+                                     style="max-width: 100%; border-radius: 8px; cursor: pointer;"
+                                     onclick="window.open('/uploads/${complaint.lampiran}', '_blank')">
+                            </div>
+                        </div>
+                    ` : ''}
+                    <div class="form-group">
+                        <label for="status"><strong>Status:</strong></label>
+                        <select class="form-control" id="status">
+                            <option value="Baru" ${complaint.status === 'Baru' ? 'selected' : ''}>Baru</option>
+                            <option value="Proses" ${complaint.status === 'Proses' ? 'selected' : ''}>Proses</option>
+                            <option value="Selesai" ${complaint.status === 'Selesai' ? 'selected' : ''}>Selesai</option>
+                            <option value="Ditolak" ${complaint.status === 'Ditolak' ? 'selected' : ''}>Ditolak</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="admin_note"><strong>Catatan Admin:</strong></label>
+                        <textarea class="form-control" id="admin_note" rows="3"
+                                  placeholder="Berikan catatan atau penjelasan kepada pelanggan...">${complaint.admin_note || ''}</textarea>
+                    </div>
+                    <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                        <button class="btn btn-primary" onclick="updateStatus(${complaint.id})" style="flex: 1;">
+                            Update Status
+                        </button>
+                        <button class="btn btn-delete" onclick="deleteComplaint(${complaint.id})" style="flex: 1;">
+                            Hapus
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('detailModal').classList.add('active');
+        }
+
+        // Update complaint status
+        async function updateStatus(complaintId) {
+            const status = document.getElementById('status').value;
+            const admin_note = document.getElementById('admin_note').value;
+
+            try {
+                const response = await fetch(`${API_URL}/admin/complaints/${complaintId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ status, admin_note })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('Status berhasil diupdate!');
+                    closeModal();
+                    loadComplaints();
+                    loadStatistics();
+                } else {
+                    alert(data.error || 'Gagal mengupdate status');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Terjadi kesalahan');
+            }
+        }
+
+        // Delete complaint
+        async function deleteComplaint(complaintId) {
+            if (!confirm('Apakah Anda yakin ingin menghapus pengaduan ini?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/admin/complaints/${complaintId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    alert('Pengaduan berhasil dihapus!');
+                    closeModal();
+                    loadComplaints();
+                    loadStatistics();
+                } else {
+                    alert(data.error || 'Gagal menghapus pengaduan');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Terjadi kesalahan');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.remove('active');
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+        }
+
+        // Event listeners
+        document.getElementById('searchInput').addEventListener('input', filterAndDisplayComplaints);
+        document.getElementById('filterStatus').addEventListener('change', filterAndDisplayComplaints);
+
+        // Close modal when clicking outside
+        document.getElementById('detailModal').addEventListener('click', (e) => {
+            if (e.target.id === 'detailModal') {
+                closeModal();
+            }
+        });
+
+        // Load data on page load
+        loadStatistics();
+        loadComplaints();
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            loadStatistics();
+            loadComplaints();
+        }, 30000);
+    </script>
+</body>
+</html>

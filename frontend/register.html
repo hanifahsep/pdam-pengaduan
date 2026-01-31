@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - PT INPAM TEKNO</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="landing-container">
+        <!-- Left Side - Welcome Message -->
+        <div class="landing-left">
+            <div class="welcome-text">
+                <h1>Selamat Datang!</h1>
+                <p>Buat akun untuk melaporkan pengaduan</p>
+            </div>
+        </div>
+
+        <!-- Right Side - Register Form -->
+        <div class="landing-right">
+            <div class="login-card" style="max-width: 500px;">
+                <div class="logo-container">
+                    <svg width="120" height="120" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="gradReg" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#0A2463;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#3B82F6;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <circle cx="100" cy="100" r="90" fill="url(#gradReg)"/>
+                        <path d="M100 45 C100 45, 80 70, 80 88 C80 102, 88 112, 100 112 C112 112, 120 102, 120 88 C120 70, 100 45, 100 45 Z" fill="white" opacity="0.9"/>
+                        <circle cx="70" cy="100" r="3" fill="white" opacity="0.6"/>
+                        <circle cx="130" cy="100" r="3" fill="white" opacity="0.6"/>
+                        <line x1="70" y1="100" x2="90" y2="100" stroke="white" stroke-width="2" opacity="0.6"/>
+                        <line x1="110" y1="100" x2="130" y2="100" stroke="white" stroke-width="2" opacity="0.6"/>
+                        <text x="100" y="140" font-family="Poppins, Arial" font-size="20" font-weight="bold" fill="white" text-anchor="middle">INPAM TEKNO</text>
+                        <text x="100" y="160" font-family="Poppins, Arial" font-size="10" fill="white" text-anchor="middle">LAYANAN PENGADUAN PDAM</text>
+                    </svg>
+                </div>
+
+                <div id="alertContainer"></div>
+
+                <form id="registerForm">
+                    <div class="form-group">
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="nama_lengkap"
+                            placeholder="Nama Lengkap"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="username"
+                            placeholder="Username"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <input
+                            type="email"
+                            class="form-control"
+                            id="email"
+                            placeholder="Email"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="no_pelanggan"
+                            placeholder="Nomor Pelanggan (Opsional)"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <input
+                            type="tel"
+                            class="form-control"
+                            id="telepon"
+                            placeholder="Nomor Telepon"
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <textarea
+                            class="form-control"
+                            id="alamat"
+                            placeholder="Alamat"
+                            rows="2"
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <input
+                            type="password"
+                            class="form-control"
+                            id="password"
+                            placeholder="Password"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <input
+                            type="password"
+                            class="form-control"
+                            id="confirm_password"
+                            placeholder="Konfirmasi Password"
+                            required
+                        >
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="registerBtn">
+                        Register
+                    </button>
+                </form>
+
+                <div style="text-align: center; margin-top: 2rem; color: #6B7280;">
+                    Sudah punya akun? <a href="/login" style="color: #3B82F6; text-decoration: none; font-weight: 600;">Login di sini</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+
+            if (password !== confirmPassword) {
+                showAlert('Password dan konfirmasi password tidak cocok', 'error');
+                return;
+            }
+
+            const formData = {
+                username: document.getElementById('username').value,
+                email: document.getElementById('email').value,
+                password: password,
+                nama_lengkap: document.getElementById('nama_lengkap').value,
+                no_pelanggan: document.getElementById('no_pelanggan').value,
+                telepon: document.getElementById('telepon').value,
+                alamat: document.getElementById('alamat').value
+            };
+
+            const registerBtn = document.getElementById('registerBtn');
+            registerBtn.disabled = true;
+            registerBtn.innerHTML = 'Mendaftar...';
+
+            try {
+                const response = await fetch(`${API_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert('Registrasi berhasil! Mengalihkan ke halaman login...', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 2000);
+                } else {
+                    showAlert(data.error || 'Registrasi gagal', 'error');
+                    registerBtn.disabled = false;
+                    registerBtn.innerHTML = 'Register';
+                }
+            } catch (error) {
+                showAlert('Terjadi kesalahan. Pastikan server berjalan.', 'error');
+                registerBtn.disabled = false;
+                registerBtn.innerHTML = 'Register';
+            }
+        });
+
+        function showAlert(message, type) {
+            const alertContainer = document.getElementById('alertContainer');
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type}">
+                    ${message}
+                </div>
+            `;
+
+            setTimeout(() => {
+                alertContainer.innerHTML = '';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

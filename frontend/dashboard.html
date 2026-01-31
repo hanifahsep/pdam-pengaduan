@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - PT INPAM TEKNO</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <svg width="50" height="50" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="100" cy="100" r="90" fill="#ffffff"/>
+                <circle cx="100" cy="100" r="70" fill="#3B82F6"/>
+                <path d="M100 50 C100 50, 85 70, 85 85 C85 95, 92 102, 100 102 C108 102, 115 95, 115 85 C115 70, 100 50, 100 50 Z" fill="white"/>
+            </svg>
+            <span>INPAM TEKNO</span>
+        </div>
+        <div class="navbar-menu">
+            <a href="#form-section" class="nav-link active">Form Pengaduan</a>
+            <a href="#history-section" class="nav-link">Riwayat</a>
+            <div class="user-info">
+                <span id="userName">User</span>
+                <button class="btn-sm btn-delete" onclick="logout()" style="margin-left: 1rem;">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <!-- Form Section -->
+        <section id="form-section" style="margin-bottom: 3rem;">
+            <div class="page-header">
+                <h1>Form Pengaduan</h1>
+                <p>Sampaikan keluhan atau pengaduan Anda</p>
+            </div>
+
+            <div class="card">
+                <div id="formAlertContainer"></div>
+
+                <form id="complaintForm">
+                    <div class="form-group">
+                        <label for="kategori">Kategori Pengaduan :</label>
+                        <select class="form-control" id="kategori" required>
+                            <option value="">Pilih Kategori</option>
+                            <option value="Tagihan/Rekening">Tagihan/Rekening</option>
+                            <option value="Kualitas Air">Kualitas Air</option>
+                            <option value="Tekanan Air">Tekanan Air</option>
+                            <option value="Kebocoran Pipa">Kebocoran Pipa</option>
+                            <option value="Pelayanan">Pelayanan</option>
+                            <option value="Lainnya">Lainnya</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="id_pelanggan">ID Pelanggan :</label>
+                        <input
+                            type="text"
+                            class="form-control"
+                            id="id_pelanggan"
+                            placeholder="Masukkan ID Pelanggan Anda"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tanggal">Tanggal pengaduan :</label>
+                        <input type="date" class="form-control" id="tanggal" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="deskripsi">Deskripsi pengaduan :</label>
+                        <textarea
+                            class="form-control"
+                            id="deskripsi"
+                            rows="5"
+                            placeholder="Jelaskan detail pengaduan Anda..."
+                            required
+                        ></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Lampiran :</label>
+                        <div class="file-upload">
+                            <input type="file" id="lampiran" accept="image/*,.pdf">
+                            <label for="lampiran" class="file-upload-label">
+                                <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M16.88 9.1A4 4 0 0 1 16 17H5a5 5 0 0 1-1-9.9V7a3 3 0 0 1 4.52-2.59A4.98 4.98 0 0 1 17 8c0 .38-.04.74-.12 1.1zM11 11h3l-4-4-4 4h3v3h2v-3z"/>
+                                </svg>
+                                <span>Pilih file</span>
+                            </label>
+                            <div class="file-name" id="fileName"></div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-success" id="submitBtn">
+                        Kirim
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- History Section -->
+        <section id="history-section">
+            <div class="page-header">
+                <h1>Riwayat Pengaduan</h1>
+                <p>Riwayat pengaduan yang telah Anda kirim</p>
+            </div>
+
+            <div id="historyContainer">
+                <div class="spinner"></div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:3000/api';
+        let token = localStorage.getItem('token');
+        let user = JSON.parse(localStorage.getItem('user'));
+
+        // Check authentication
+        if (!token || !user) {
+            window.location.href = '/login';
+        }
+
+        // Display user name
+        document.getElementById('userName').textContent = user.nama_lengkap || user.username;
+
+        // Auto-fill ID Pelanggan in form (can be edited)
+        if (user.no_pelanggan) {
+            document.getElementById('id_pelanggan').value = user.no_pelanggan;
+        }
+
+        // Set today's date as default
+        document.getElementById('tanggal').valueAsDate = new Date();
+
+        // File input handler
+        document.getElementById('lampiran').addEventListener('change', function(e) {
+            const fileName = e.target.files[0]?.name || 'Tidak ada file dipilih';
+            document.getElementById('fileName').textContent = fileName;
+        });
+
+        // Submit complaint form
+        document.getElementById('complaintForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData();
+            formData.append('kategori', document.getElementById('kategori').value);
+            formData.append('id_pelanggan', document.getElementById('id_pelanggan').value);
+            formData.append('tanggal', document.getElementById('tanggal').value);
+            formData.append('deskripsi', document.getElementById('deskripsi').value);
+
+            const fileInput = document.getElementById('lampiran');
+            if (fileInput.files[0]) {
+                formData.append('lampiran', fileInput.files[0]);
+            }
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = 'Mengirim...';
+
+            try {
+                const response = await fetch(`${API_URL}/complaints/submit`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showFormAlert('Pengaduan berhasil dikirim!', 'success');
+                    document.getElementById('complaintForm').reset();
+                    document.getElementById('fileName').textContent = '';
+                    document.getElementById('tanggal').valueAsDate = new Date();
+
+                    // Reload history
+                    loadHistory();
+                } else {
+                    showFormAlert(data.error || 'Gagal mengirim pengaduan', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showFormAlert('Terjadi kesalahan. Pastikan server berjalan.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Kirim';
+            }
+        });
+
+        // Load complaint history
+        async function loadHistory() {
+            try {
+                const response = await fetch(`${API_URL}/complaints/history`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    displayHistory(data.complaints);
+                } else {
+                    document.getElementById('historyContainer').innerHTML = `
+                        <div class="alert alert-error">
+                            Gagal memuat riwayat pengaduan
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('historyContainer').innerHTML = `
+                    <div class="alert alert-error">
+                        Terjadi kesalahan saat memuat data
+                    </div>
+                `;
+            }
+        }
+
+        // Display history
+        function displayHistory(complaints) {
+            const container = document.getElementById('historyContainer');
+
+            if (complaints.length === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-info">
+                        Belum ada riwayat pengaduan
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = complaints.map(complaint => `
+                <div class="history-item">
+                    <div class="history-header">
+                        <div>
+                            <h3 style="margin-bottom: 0.5rem; color: #1F2937;">${complaint.kategori}</h3>
+                            <div class="history-date">
+                                Tanggal pengaduan: ${new Date(complaint.tanggal).toLocaleDateString('id-ID', {
+                                    day: 'numeric',
+                                    month: 'long',
+                                    year: 'numeric'
+                                })}
+                            </div>
+                        </div>
+                        <span class="status-badge ${complaint.status.toLowerCase()}">${complaint.status}</span>
+                    </div>
+                    <div class="history-content">
+                        <p><strong>Deskripsi:</strong><br>${complaint.deskripsi}</p>
+                        ${complaint.admin_note ? `
+                            <p style="background: #FEF3C7; padding: 1rem; border-radius: 8px; margin-top: 0.5rem;">
+                                <strong>Catatan Admin:</strong><br>${complaint.admin_note}
+                            </p>
+                        ` : ''}
+                        ${complaint.lampiran ? `
+                            <div class="history-image">
+                                <img src="/uploads/${complaint.lampiran}" alt="Lampiran" onclick="window.open('/uploads/${complaint.lampiran}', '_blank')">
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showFormAlert(message, type) {
+            const alertContainer = document.getElementById('formAlertContainer');
+            alertContainer.innerHTML = `
+                <div class="alert alert-${type}">
+                    ${message}
+                </div>
+            `;
+
+            setTimeout(() => {
+                alertContainer.innerHTML = '';
+            }, 5000);
+        }
+
+        function logout() {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            window.location.href = '/login';
+        }
+
+        // Load history on page load
+        loadHistory();
+
+        // Smooth scroll for navigation
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href');
+                document.querySelector(targetId).scrollIntoView({
+                    behavior: 'smooth'
+                });
+
+                // Update active link
+                document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
